@@ -11,11 +11,23 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { createWorker } from "tesseract.js";
+import { LoaderCircle } from "lucide-react";
+import { fstat } from "fs";
+import PdfParse from "pdf-parse";
+import { fs } from "fs";
+import { pdf } from "pdf-parse";
 
 function App() {
   const [content, setContent] = useState("");
   const [aiResponse, setAiResponse] = useState(null);
   const [question, setQuestion] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [ploading, setpLoading] = useState(false);
+  const [qloading, setqLoading] = useState(false);
+  const [Imageloading, setImageLoading] = useState(false);
+  const [imgGuide, setImgGuide] = useState("");
+  const [pdf, setPdf] = useState(null);
 
   const handleChange = (e) => {
     setContent(e.target.value);
@@ -29,21 +41,41 @@ function App() {
     "here are some parsed summarized points {aiResponse}. now make 7 questions and answers from the points. The questiona and answer should not be long and should be in JSON format. formating of array should be qa --> question,answer ";
 
   const GeneratePoints = async () => {
+    setpLoading(true);
     const PROMPT = prompt.replace("{content}", content);
     const result = await AIChatSession.sendMessage(PROMPT);
     const responseText = result.response.text();
     const parsedResponse = JSON.parse(responseText);
     setAiResponse(parsedResponse);
     console.log(parsedResponse);
+    setpLoading(false);
   };
 
   const GenerateQuestions = async () => {
+    setqLoading(true);
     const Qpromt = questionPrompt.replace("{aiResponse}", aiResponse);
     const Qresult = await AIChatSession.sendMessage(Qpromt);
     const Qreponse = Qresult.response.text();
     const Qparsed = JSON.parse(Qreponse);
     setQuestion(Qparsed);
     console.log(Qparsed);
+    setqLoading(false);
+  };
+
+  const image = async () => {
+    try {
+      setImageLoading(true);
+      const worker = await createWorker("eng");
+      const ret = await worker.recognize(selectedImage);
+      setContent(ret.data.text);
+      console.log(ret.data.text);
+      await worker.terminate();
+      setImageLoading(false);
+      setImgGuide("Content loaded succesfully ✅ || Now click Generate 👓");
+    } catch (error) {
+      setImageLoading(false);
+      alert("please upload a png or jpeg");
+    }
   };
 
   return (
@@ -53,8 +85,39 @@ function App() {
         click generate to get started!
       </label>
       <Textarea onChange={handleChange} placeholder="Type your message here." />
-      <Button type="submit" onClick={() => GeneratePoints()}>
-        Generate Bullet Points
+      <div className="mx-0">
+        <h2>Upload Image Only 👇🏻</h2>
+        <input
+          type="file"
+          name="myImage"
+          // Event handler to capture file selection and update the state
+          onChange={(event) => {
+            console.log(event.target.files[0]); // Log the selected file
+            setSelectedImage(event.target.files[0]); // Update the state with the selected file
+          }}
+        />
+
+        <Button onClick={() => image()}>
+          {Imageloading ? (
+            <LoaderCircle className="animate-spin" />
+          ) : (
+            "Generate content from Image"
+          )}
+        </Button>
+      </div>
+      <div>
+        <h2>{imgGuide}</h2>
+      </div>
+      <Button
+        type="submit"
+        disabled={ploading}
+        onClick={() => GeneratePoints()}
+      >
+        {ploading ? (
+          <LoaderCircle className="animate-spin" />
+        ) : (
+          "Generate Bullet Points"
+        )}
       </Button>
 
       {aiResponse && (
@@ -68,7 +131,11 @@ function App() {
 
           <div className="my-5 mx-96">
             <Button type="submit" onClick={() => GenerateQuestions()}>
-              Generate Questions
+              {qloading ? (
+                <LoaderCircle className="animate-spin" />
+              ) : (
+                "Generate Questions"
+              )}
             </Button>
           </div>
 
